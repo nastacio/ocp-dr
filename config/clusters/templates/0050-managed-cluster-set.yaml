@@ -1,0 +1,11 @@
+# https://red-hat-storage.github.io/ocs-training/training/ocs4/odf4-multisite-ramen.html#_connect_the_managed_clusters_using_submariner_add_ons
+---
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: ManagedClusterSet
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "50"
+  name: {{ .Values.metadata.rhacm.clusterset }}
+spec:
+  clusterSelector:
+    selectorType: LegacyClusterSetLabel

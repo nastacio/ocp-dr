@@ -1,0 +1,15 @@
+---
+repoURL: https://github.com/nastacio/ocp-dr
+targetRevision: main
+serviceaccount:
+  argocd_application_controller: openshift-gitops-argocd-application-controller
+metadata:
+  argocd_namespace: openshift-gitops
+  odf:
+    disk_size: 500Gi
+    mirroring_enabled: false
+    namespace: openshift-storage    
+    operator_name: set in presync hook, based on OCP version
+    storage_class_name: set in presync hook. You can override it here if you prefer a specific name.
+    storage_cluster_name: ocs-storagecluster
+    version: set in presync hook, based on OCP version

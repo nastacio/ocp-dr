@@ -1,0 +1,16 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+  creationTimestamp: null
+  name: gitops-odf-crb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gitops-odf-cluster-role
+subjects:
+  - kind: ServiceAccount
+    name: {{.Values.serviceaccount.argocd_application_controller}}
+    namespace: {{.Values.metadata.argocd_namespace}}

@@ -1,0 +1,32 @@
+---
+apiVersion: cluster.open-cluster-management.io/v1
+kind: ManagedCluster
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "60"
+  labels:
+    cloud: {{ .Values.metadata.managed_cloud }}
+    region: {{ .Values.metadata.cluster.cluster_1.region }}
+    name: {{ .Values.metadata.cluster.cluster_1.name }}
+    odf: "true"   # Needs the quotes: https://github.com/argoproj/argo-cd/issues/10489
+    vendor: OpenShift
+    cluster.open-cluster-management.io/clusterset: {{ .Values.metadata.rhacm.clusterset }}
+  name: {{ .Values.metadata.cluster.cluster_1.name }}
+spec:
+  hubAcceptsClient: true
+---
+apiVersion: cluster.open-cluster-management.io/v1
+kind: ManagedCluster
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "60"
+  labels:
+    cloud: {{ .Values.metadata.managed_cloud }}
+    region: {{ .Values.metadata.cluster.cluster_2.region }}
+    name: {{ .Values.metadata.cluster.cluster_2.name }}
+    odf: "true"   # Needs the quotes: https://github.com/argoproj/argo-cd/issues/10489
+    vendor: OpenShift
+    cluster.open-cluster-management.io/clusterset: {{ .Values.metadata.rhacm.clusterset }}
+  name: {{ .Values.metadata.cluster.cluster_2.name }}
+spec:
+  hubAcceptsClient: true

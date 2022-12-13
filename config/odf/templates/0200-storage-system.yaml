@@ -1,0 +1,13 @@
+---
+apiVersion: odf.openshift.io/v1alpha1
+kind: StorageSystem
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "200"
+  name: {{ .Values.metadata.odf.storage_cluster_name }}-storagesystem
+  namespace: {{ .Values.metadata.odf.namespace }}
+spec:
+  kind: storagecluster.ocs.openshift.io/v1
+  name: {{ .Values.metadata.odf.storage_cluster_name }}
+  namespace: {{ .Values.metadata.odf.namespace }}

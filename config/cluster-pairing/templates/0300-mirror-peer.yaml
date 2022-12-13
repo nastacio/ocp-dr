@@ -1,0 +1,22 @@
+---
+apiVersion: multicluster.odf.openshift.io/v1alpha1
+kind: MirrorPeer
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "300"
+  name: mirrorpeer-{{ .Values.metadata.cluster.cluster_1.name }}-{{ .Values.metadata.cluster.cluster_2.name }}
+spec:
+  items:
+    - clusterName: {{ .Values.metadata.cluster.cluster_1.name }}
+      storageClusterRef:
+        name: {{ .Values.metadata.odf.storage_cluster_name }}
+        namespace: {{ .Values.metadata.odf.namespace }}
+    - clusterName: {{ .Values.metadata.cluster.cluster_2.name }}
+      storageClusterRef:
+        name: {{ .Values.metadata.odf.storage_cluster_name }}
+        namespace: {{ .Values.metadata.odf.namespace }}
+  manageS3: true
+  schedulingIntervals:
+    - 5m
+    - 15m
+  type: async

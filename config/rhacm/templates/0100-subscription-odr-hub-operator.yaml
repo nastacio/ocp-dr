@@ -1,0 +1,14 @@
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+  name: odr-hub-operator
+  namespace: {{ .Values.metadata.dr.namespace }}
+spec:
+  channel: "stable-{{.Values.metadata.ocp.version}}"
+  installPlanApproval: Automatic
+  name: odr-hub-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace

@@ -1,0 +1,28 @@
+apiVersion: ramendr.openshift.io/v1alpha1
+kind: DRPlacementControl
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "200"
+  name: busybox-placement-1-drpc
+  namespace: busybox-sample
+  labels:
+    app: busybox
+    cluster.open-cluster-management.io/backup: resource
+spec:
+  {{- if eq  .Values.metadata.app_action "relocate" }}
+  action: Relocate
+  {{- else if eq  .Values.metadata.app_action "failover" }}
+  action: Failover
+  {{- else }}
+  {{- end }}
+  failoverCluster: {{ .Values.metadata.cluster.cluster_2.name }}
+  drPolicyRef:
+    name: odr-policy-{{ .Values.metadata.cluster.cluster_1.name }}-{{ .Values.metadata.cluster.cluster_2.name }}-5m
+  placementRef:
+    kind: PlacementRule
+    name: busybox-placement-1
+    namespace: busybox-sample
+  preferredCluster: {{ .Values.metadata.cluster.cluster_1.name }}
+  pvcSelector:
+    matchLabels:
+      appname: busybox

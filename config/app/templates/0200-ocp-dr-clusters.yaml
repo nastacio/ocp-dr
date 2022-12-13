@@ -1,0 +1,65 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "200"
+  creationTimestamp: null
+  name: ocp-dr-clusters
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: openshift-gitops
+    server: https://kubernetes.default.svc
+  ignoreDifferences:
+    - group: argoproj.io
+      jsonPointers:
+        - /spec/source/repoURL
+        - /spec/source/targetRevision
+        - /spec/syncPolicy
+        - /status
+      kind: Application
+  project: default
+  source:
+    helm:
+      parameters:
+        - name: repoURL
+          value: ${ARGOCD_APP_SOURCE_REPO_URL}
+        - name: targetRevision
+          value: ${ARGOCD_APP_SOURCE_TARGET_REVISION}
+        - name: metadata.cluster.name_seed
+          value: "{{ .Values.metadata.cluster.name_seed }}"
+        - name: metadata.cluster.cluster_1.name
+          value: "{{ .Values.metadata.cluster.cluster_1.name }}"
+        - name: metadata.cluster.cluster_2.name
+          value: "{{ .Values.metadata.cluster.cluster_2.name }}"
+        - name: metadata.cluster.image_set_ref
+          value: "{{ .Values.metadata.cluster.image_set_ref }}"
+        - name: metadata.odf.namespace
+          value: {{ .Values.metadata.odf.namespace }}
+        - name: metadata.odf.storage_class_name
+          value: {{ .Values.metadata.odf.storage_class_name }}
+        - name: metadata.odf.storage_cluster_name
+          value: {{ .Values.metadata.odf.storage_cluster_name }}
+        - name: metadata.rhacm.clusterset
+          value: {{ .Values.metadata.rhacm.clusterset }}
+        - name: metadata.rhacm.secret
+          value: "{{ .Values.metadata.rhacm.secret }}"
+        - name: metadata.rhacm.secret_namespace
+          value: "{{ .Values.metadata.rhacm.secret_namespace }}"
+    path: config/clusters
+    repoURL: {{.Values.repoURL}}
+    targetRevision: {{.Values.targetRevision}}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+status:
+  health: {}
+  summary: {}
+  sync:
+    comparedTo:
+      destination: {}
+      source:
+        repoURL: ""
+    status: ""

@@ -1,0 +1,16 @@
+{{- $mirroring_enabled := .Values.metadata.odf.mirroring_enabled }}
+{{- if eq ( default false $mirroring_enabled ) true  }}
+---
+# https://red-hat-storage.github.io/ocs-training/training/ocs4/odf4-multisite-ramen.html#_create_object_bucket_and_retrieve_access_keys
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "400"
+  name: odrbucket
+  namespace: {{ .Values.metadata.odf.namespace }}
+spec:
+  generateBucketName: "odrbucket"
+  storageClassName: openshift-storage.noobaa.io
+{{- end }}

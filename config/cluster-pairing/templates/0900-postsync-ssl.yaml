@@ -1,0 +1,116 @@
+# https://red-hat-storage.github.io/ocs-training/training/ocs4/odf4-multisite-ramen.html#_create_s3_secrets_for_mcg_object_buckets
+# https://red-hat-storage.github.io/ocs-training/training/ocs4/odf4-multisite-ramen.html#_configure_odr_cluster_operator_configmaps
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+  name: postsync-ssl
+  namespace: {{.Values.metadata.argocd_namespace}}
+spec:
+  template:
+    spec:
+      containers:
+        - name: config
+          image: quay.io/openshift/origin-cli:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CLUSTER_1_NAME
+              value: {{.Values.metadata.cluster.cluster_1.name}}
+            - name: CLUSTER_2_NAME
+              value: {{.Values.metadata.cluster.cluster_2.name}}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -eo pipefail
+              set -x
+
+              result=0
+
+              WORKDIR=/tmp
+
+              export KUBECONFIG=${WORKDIR}/kubeconfig-hub
+              api_url=$(oc get Infrastructure cluster -o jsonpath='{.status.apiServerURL}')
+              oc login "${api_url}" --token="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+              && echo "INFO: Logged in to hub cluster." \
+              || {
+                  echo "WARNING: Unable to login to hub cluster."
+              }
+
+              echo "INFO: Login to cluster 1." \
+              && cluster_1_wd="${WORKDIR}/cluster-1" \
+              && mkdir -p "${cluster_1_wd}" \
+              && secret_name=$(oc get ClusterDeployment "${CLUSTER_1_NAME}" \
+                  --namespace "${CLUSTER_1_NAME}" \
+                  -o jsonpath='{.spec.clusterMetadata.adminKubeconfigSecretRef.name}') \
+              && oc extract secret/${secret_name} \
+                  --namespace "${CLUSTER_1_NAME}" \
+                  --keys kubeconfig \
+                  --to ${cluster_1_wd} \
+                  --confirm=true \
+              && echo "INFO: Login to cluster 2." \
+              && cluster_2_wd="${WORKDIR}/cluster-2" \
+              && mkdir -p "${cluster_2_wd}" \
+              && secret_name=$(oc get ClusterDeployment "${CLUSTER_2_NAME}" \
+                  --namespace "${CLUSTER_2_NAME}" \
+                  -o jsonpath='{.spec.clusterMetadata.adminKubeconfigSecretRef.name}') \
+              && oc extract secret/${secret_name} \
+                  --namespace "${CLUSTER_2_NAME}" \
+                  --keys kubeconfig \
+                  --to ${cluster_2_wd} \
+                  --confirm=true \
+              && echo "INFO: Retrieve values from cluster 1." \
+              && export KUBECONFIG=${cluster_1_wd}/kubeconfig \
+              && oc get cm default-ingress-cert \
+                    -n openshift-config-managed \
+                    -o jsonpath="{['data']['ca-bundle\.crt']}" > "${WORKDIR}/primary.crt" \
+              && echo "INFO: Retrieve values from cluster 2." \
+              && export KUBECONFIG=${cluster_2_wd}/kubeconfig \
+              && oc get cm default-ingress-cert \
+                    -n openshift-config-managed \
+                    -o jsonpath="{['data']['ca-bundle\.crt']}" > "${WORKDIR}/secondary.crt" \
+              && {
+                    cat "${WORKDIR}/primary.crt" "${WORKDIR}/secondary.crt" >> "${WORKDIR}/cm-clusters-crt.yaml" \
+                    && oc create configmap user-ca-bundle \
+                        -n openshift-config \
+                        --dry-run=client \
+                        --from-file=ca-bundle\.crt="${WORKDIR}/cm-clusters-crt.yaml" \
+                        -o yaml \
+                      | oc apply -f - \
+                    && oc patch proxy cluster \
+                        --type=merge \
+                        --patch='{"spec":{"trustedCA":{"name":"user-ca-bundle"}}}'
+                } \
+              && echo "INFO: Log back to cluster 1." \
+              && export KUBECONFIG=${cluster_1_wd}/kubeconfig \
+              && {
+                    oc create configmap user-ca-bundle \
+                        -n openshift-config \
+                        --dry-run=client \
+                        --from-file=ca-bundle\.crt="${WORKDIR}/cm-clusters-crt.yaml" \
+                        -o yaml \
+                      | oc apply -f - \
+                    && oc patch proxy cluster \
+                        --type=merge \
+                        --patch='{"spec":{"trustedCA":{"name":"user-ca-bundle"}}}'
+                } \
+              && export KUBECONFIG=${WORKDIR}/kubeconfig-hub \
+              && {
+                    oc create configmap user-ca-bundle \
+                        -n openshift-config \
+                        --dry-run=client \
+                        --from-file=ca-bundle\.crt="${WORKDIR}/cm-clusters-crt.yaml" \
+                        -o yaml \
+                      | oc apply -f - \
+                    && oc patch proxy cluster \
+                        --type=merge \
+                        --patch='{"spec":{"trustedCA":{"name":"user-ca-bundle"}}}'
+                } \
+              || result=1
+
+              exit ${result}
+      restartPolicy: Never
+      serviceAccountName: {{.Values.serviceaccount.argocd_application_controller}}
+  backoffLimit: 2

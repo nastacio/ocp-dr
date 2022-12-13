@@ -1,0 +1,11 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+  creationTimestamp: null
+  name: gitops-odf-cluster-role
+rules:
+  - apiGroups: ["replication.storage.openshift.io"]
+    resources: ["volumereplicationclasses"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]

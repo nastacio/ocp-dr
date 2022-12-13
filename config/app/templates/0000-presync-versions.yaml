@@ -1,0 +1,119 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+  name: presync-ocp-dr-odf-app-settings
+  namespace: {{.Values.metadata.argocd_namespace}}
+spec:
+  template:
+    spec:
+      containers:
+        - name: config
+          image: quay.io/openshift/origin-cli:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ARGOCD_APP_NAME
+              value: "ocp-dr-app"
+            - name: ARGOCD_NAMESPACE
+              value: "{{.Values.metadata.argocd_namespace}}"
+            - name: DEFAULT_STORAGE_CLASS
+              value: "{{.Values.metadata.odf.storage_class_name}}"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -eo pipefail
+              set -x
+
+              result=0
+
+              ocp_version=$(oc get ClusterVersion version -o jsonpath='{.status.desired.version}'  | cut -d "." -f 1,2)
+              if [ -z "${ocp_version}" ]; then
+                  log "ERROR: Unable to determine cluster version for ${cluster_name}"
+                  return 1
+              fi
+
+              odf=1
+              if [ "${ocp_version}" == "4.6" ] || 
+                  [ "${ocp_version}" == "4.7" ] || 
+                  [ "${ocp_version}" == "4.8" ]; then
+                  odf=0
+              fi
+
+              hypershift_deployment=$(oc get Infrastructure cluster -o jsonpath='{.metadata.labels.hypershift\.io/managed}')
+              if [ "${ocp_version}" == "4.10" ] && [ -n "${hypershift_deployment}" ]; then
+                  log "WARNING: HyperShift does not have ODF 4.10 available yet. Using 4.9."
+                  ocp_version=4.9
+              fi
+
+              operator_name=odf-operator
+              if [ "${odf}" -eq 0 ]; then
+                  operator_name=ocs-operator
+              fi
+
+              storage_class="${DEFAULT_STORAGE_CLASS}"
+              if [[ ! "${storage_class} " =~ "set in" ]]; then
+                  echo "INFO: Using storage class override."
+              else
+                  echo "INFO: No storage class override, attempting default storage class."
+                  storage_class=$(oc get StorageClass -o=jsonpath='{.items[?(.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")].metadata.name}' | head -n 1)
+
+                  if [ -n "${storage_class}" ]; then
+                      echo "INFO: Using default storage class."
+                  else
+                      echo "INFO: No default storage class, attempting to infer it."
+                      platform=$(oc get Infrastructure cluster -o jsonpath={.status.platform})
+                      if [ "${platform}" == "AWS" ]; then
+                          storage_class=gp3
+                          if oc get StorageClass gp3 2> /dev/null; then
+                              storage_class=gp3
+                          elif oc get StorageClass gp2 > /dev/null; then
+                              storage_class=gp2
+                          fi
+                      elif [ "${platform}" == "Azure" ]; then
+                          if oc get StorageClass managed-premium 2> /dev/null; then
+                              storage_class=managed-premium
+                          elif oc get StorageClass managed-csi 2> /dev/null; then
+                              storage_class=managed-csi
+                          fi
+                      else
+                          echo "ERROR: Unsupperted cloud provider: ${platform}"
+                          return 1
+                      fi
+                      if [ -z "${storage_class}" ]; then
+                          echo "ERROR: There are no recognizable cloud-specific storage classes, no default storage class, and no overrides in Helm template value [metadata.odf.storage_class_name]. Unable to proceed."
+                          exit 1
+                      fi
+                  fi
+              fi
+
+              echo "INFO: Install Argo CLI."
+              # Install it from cluster, not from Internet, so airgap scenarios still work
+              argo_route="${ARGOCD_NAMESPACE}-server"
+              argo_secret="${ARGOCD_NAMESPACE}-cluster"
+
+              export HOME=/tmp
+              argo_cmd="${HOME}/argocd"
+
+              argo_url=$(oc get route ${argo_route} -n ${ARGOCD_NAMESPACE} -ojsonpath='{.spec.host}') \
+              && curl -skL "${argo_url}/download/argocd-linux-amd64" -o "${argo_cmd}" \
+              && chmod 755 "${argo_cmd}" \
+              && argo_pwd=$(oc get secret ${argo_secret} -n ${ARGOCD_NAMESPACE} -ojsonpath='{.data.admin\.password}' | base64 -d ; echo ) \
+              && "${argo_cmd}" login "${argo_url}" --username admin --password "${argo_pwd}" --insecure \
+              && "${argo_cmd}" app set "${ARGOCD_APP_NAME}" \
+                  --helm-set-string metadata.ocp.version="${ocp_version}" \
+                  --helm-set-string metadata.odf.version="${ocp_version}" \
+                  --helm-set-string metadata.odf.operator_name="${operator_name}" \
+                  --helm-set-string metadata.odf.storage_class_name="${storage_class}" \
+              && echo "INFO: ${ARGOCD_APP_NAME} successfully updated ODF settings." \
+              || result=1
+
+              echo "INFO: Application ${ARGOCD_APP_NAME} current parameters:"
+              "${argo_cmd}" app get "${ARGOCD_APP_NAME}" --show-params
+
+              exit ${result}
+      restartPolicy: Never
+      serviceAccountName: {{.Values.serviceaccount.argocd_application_controller}}
+  backoffLimit: 2

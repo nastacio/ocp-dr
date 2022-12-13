@@ -1,0 +1,16 @@
+---
+apiVersion: ramendr.openshift.io/v1alpha1
+kind: DRPolicy
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "300"
+  name: odr-policy-{{ .Values.metadata.cluster.cluster_1.name }}-{{ .Values.metadata.cluster.cluster_2.name }}-5m
+spec:
+  drClusters:
+    - {{ .Values.metadata.cluster.cluster_1.name }}
+    - {{ .Values.metadata.cluster.cluster_2.name }}
+  replicationClassSelector:
+    matchLabels:
+      class: ramen
+  schedulingInterval: 5m
+    

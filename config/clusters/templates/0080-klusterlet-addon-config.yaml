@@ -1,0 +1,27 @@
+{{- $managed_cloud := .Values.metadata.managed_cloud -}}
+{{- range tuple .Values.metadata.cluster.cluster_1.name .Values.metadata.cluster.cluster_2.name }}
+---
+apiVersion: agent.open-cluster-management.io/v1
+kind: KlusterletAddonConfig
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "80"
+  name: {{.}}
+  namespace: {{.}}
+spec:
+  clusterName: {{.}}
+  clusterNamespace: {{.}}
+  clusterLabels:
+    cloud: {{ $managed_cloud }}
+    vendor: OpenShift
+  applicationManager:
+    enabled: true
+  policyController:
+    enabled: true
+  searchCollector:
+    enabled: true
+  certPolicyController:
+    enabled: true
+  iamPolicyController:
+    enabled: true
+{{- end }}

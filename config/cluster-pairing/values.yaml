@@ -6,7 +6,6 @@ serviceaccount:
 metadata:
   argocd_namespace: openshift-gitops
   cloud: AWS
-  managed_cloud: Amazon
   cluster:
     name_seed: set in parent app
     base_domain: cloudpak-bringup.com
@@ -16,7 +15,7 @@ metadata:
     worker_replicas: 3
     odf_worker_replicas: 3
     odf_worker_type: m5.4xlarge
-    image_set_ref: img4.10.45-x86-64-appsub
+    image_set_ref: img4.11.18-x86-64-appsub
     fips: false
     cluster_1:
       name: set in parent app
@@ -26,6 +25,9 @@ metadata:
       name: set in parent app
       region: us-west-2
       zone: us-west-2a
+  dr:
+    namespace: openshift-dr-system
+  managed_cloud: Amazon
   odf:
     storage_cluster_name: set in parent app
   rhacm:

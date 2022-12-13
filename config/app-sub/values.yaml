@@ -1,0 +1,15 @@
+---
+repoURL: https://github.com/nastacio/ocp-dr
+targetRevision: main
+serviceaccount:
+  argocd_application_controller: openshift-gitops-argocd-application-controller
+metadata:
+  app_action: "" # Could be "relocate" or "failover" or empty (no action)
+  argocd_namespace: openshift-gitops
+  cluster:
+    cluster_1:
+      name: ocpdr1
+    cluster_2:
+      name: ocpdr2
+  ocp:
+    version: set in presync hook, based on OCP version

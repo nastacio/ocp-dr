@@ -1,0 +1,30 @@
+---
+repoURL: https://github.com/nastacio/ocp-dr
+targetRevision: main
+serviceaccount:
+  argocd_application_controller: openshift-gitops-argocd-application-controller
+metadata:
+  app_action: "" # Could be "relocate" or "failover" or empty (no action)
+  argocd_namespace: openshift-gitops
+  cluster:
+    name_seed: ocpdr
+    cluster_1:
+      name: ocpdr1
+    cluster_2:
+      name: ocpdr2
+    image_set_ref: img4.10.45-x86-64-appsub
+  dr:
+    namespace: openshift-dr-system
+  ocp:
+    version: set in presync hook, based on OCP version
+  odf:
+    mirroring_enabled: false
+    namespace: openshift-storage    
+    operator_name: set in presync hook, based on OCP version
+    storage_class_name: set in presync hook. You can override it here if you prefer a specific name.
+    storage_cluster_name: ocs-storagecluster
+    version: set in presync hook, based on OCP version
+  rhacm:
+    clusterset: ocp-dr
+    secret: aws
+    secret_namespace: rhacm-cloud-creds

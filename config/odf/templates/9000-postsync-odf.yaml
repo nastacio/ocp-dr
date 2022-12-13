@@ -1,0 +1,72 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+  name: postsync-odf
+  namespace: {{.Values.metadata.argocd_namespace}}
+spec:
+  template:
+    spec:
+      containers:
+        - name: config
+          image: quay.io/openshift/origin-cli:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MIRRORING_ENABLED
+              value: "{{.Values.metadata.odf.mirroring_enabled}}"
+            - name: ODF_NAMESPACE
+              value: "{{.Values.metadata.odf.namespace}}"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -eo pipefail
+              set -x
+
+              result=0
+
+              # https://access.redhat.com/solutions/6047841
+              echo "INFO: Patching ODF tolerations" \
+              && oc patch configmap rook-ceph-operator-config \
+                  -n "${ODF_NAMESPACE}" \
+                  --patch '{"data":{ "CSI_PLUGIN_TOLERATIONS": "- key: nodetype\n  operator: Equal\n  value: infra\n  effect: NoSchedule\n- key: node.ocs.openshift.io/storage\n  operator: Equal\n  value: \"true\"\n  effect: NoSchedule\n- key: odf-only\n  operator: Equal\n  value: \"true\"\n  effect: NoSchedule", "CSI_PROVISIONER_TOLERATIONS": "- key: node.ocs.openshift.io/storage\n  operator: Equal\n  value: \"true\"\n  effect: NoSchedule\n- key: odf-only\n  operator: Equal\n  value: \"true\"\n  effect: NoSchedule"}}' \
+                  --type strategic \
+              && oc delete pod -l app=rook-ceph-operator \
+                  -n "${ODF_NAMESPACE}" \
+              && echo "INFO: Enable console plugin." \
+              && oc patch console.operator cluster \
+                  -n "${ODF_NAMESPACE}" \
+                  --type json \
+                  -p '[{"op": "add", "path": "/spec/plugins", "value": ["odf-console"]}]' \
+              && echo "INFO: Enable OMAP Generator & Volume Replication on the managed clusters." \
+              && oc patch cm rook-ceph-operator-config \
+                  -n "${ODF_NAMESPACE}" \
+                  --type json --patch  '[{ "op": "add", "path": "/data/CSI_ENABLE_OMAP_GENERATOR", "value": "true" }]' \
+              && oc patch cm rook-ceph-operator-config \
+                  -n "${ODF_NAMESPACE}" \
+                  --type json \
+                  --patch  '[{ "op": "add", "path": "/data/CSI_ENABLE_VOLUME_REPLICATION", "value": "true" }]' \
+              && for l in $(oc get pods \
+                  -n "${ODF_NAMESPACE}" \
+                  -l app=csi-rbdplugin-provisioner \
+                  -o jsonpath={.items[*].spec.containers[*].name})
+              do
+                  echo $l
+              done \
+              && sc=$(oc get storagecluster \
+                        -n "${ODF_NAMESPACE}" \
+                        -o=jsonpath='{.items[0].metadata.name}') \
+              && if [ "${MIRRORING_ENABLED}" == "true" ]; then
+                    oc patch storagecluster ${sc} \
+                        -n "${ODF_NAMESPACE}" \
+                        --type json \
+                        --patch  '[{ "op": "replace", "path": "/spec/mirroring", "value": {"enabled": true} }]'
+                  fi \
+              || result=1
+
+              exit ${result}
+      restartPolicy: Never
+      serviceAccountName: {{.Values.serviceaccount.argocd_application_controller}}
+  backoffLimit: 2

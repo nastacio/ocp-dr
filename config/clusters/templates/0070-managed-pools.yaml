@@ -1,0 +1,44 @@
+---
+apiVersion: hive.openshift.io/v1
+kind: MachinePool
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "70"
+  name: {{ .Values.metadata.cluster.cluster_1.name }}-worker
+  namespace: {{ .Values.metadata.cluster.cluster_1.name }}
+spec:
+  clusterDeploymentRef:
+    name: {{ .Values.metadata.cluster.cluster_1.name }}
+  name: worker
+  platform:
+    aws:
+      rootVolume:
+        iops: 2000
+        size: 100
+        type: io1
+      type: {{ .Values.metadata.cluster.worker_type }}
+      zones:
+      - {{ .Values.metadata.cluster.cluster_1.zone }}
+  replicas: {{ .Values.metadata.cluster.worker_replicas }}
+---
+apiVersion: hive.openshift.io/v1
+kind: MachinePool
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "70"
+  name: {{ .Values.metadata.cluster.cluster_2.name }}-worker
+  namespace: {{ .Values.metadata.cluster.cluster_2.name }}
+spec:
+  clusterDeploymentRef:
+    name: {{ .Values.metadata.cluster.cluster_2.name }}
+  name: worker
+  platform:
+    aws:
+      rootVolume:
+        iops: 2000
+        size: 100
+        type: io1
+      type: {{ .Values.metadata.cluster.worker_type }}
+      zones:
+      - {{ .Values.metadata.cluster.cluster_2.zone }}
+  replicas: {{ .Values.metadata.cluster.worker_replicas }}

@@ -1,0 +1,34 @@
+# https://access.redhat.com/documentation/en-us/red_hat_openshift_data_foundation/4.11/html-single/configuring_openshift_data_foundation_disaster_recovery_for_openshift_workloads/index#enabling-multicluster-web-console_rdr---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+  name: postsync-feature-gate
+  namespace: {{.Values.metadata.argocd_namespace}}
+spec:
+  template:
+    spec:
+      containers:
+        - name: config
+          image: quay.io/openshift/origin-cli:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -eo pipefail
+              set -x
+
+              result=0
+
+              oc patch FeatureGate cluster \
+                  --type=merge \
+                  -p "{\"spec\":{\"featureSet\": \"TechPreviewNoUpgrade\" }}" \
+              && echo "INFO: Feature gate for tech preview is enabled." \
+              || result=1
+
+              exit ${result}
+      restartPolicy: Never
+      serviceAccountName: {{.Values.serviceaccount.argocd_application_controller}}
+  backoffLimit: 2

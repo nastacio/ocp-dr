@@ -1,0 +1,70 @@
+---
+apiVersion: hive.openshift.io/v1
+kind: ClusterDeployment
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "60"
+  name: {{ .Values.metadata.cluster.cluster_1.name }}
+  namespace: {{ .Values.metadata.cluster.cluster_1.name }}
+  labels:
+    cloud: {{ .Values.metadata.cloud }}
+    odf: true
+    region: {{ .Values.metadata.cluster.cluster_1.region }}
+    vendor: OpenShift
+    cluster.open-cluster-management.io/clusterset: {{ .Values.metadata.rhacm.clusterset }}
+spec:
+  baseDomain: {{ .Values.metadata.cluster.base_domain }}
+  clusterName: {{ .Values.metadata.cluster.cluster_1.name }}
+  controlPlaneConfig:
+    servingCertificates: {}
+  installAttemptsLimit: 1
+  # installed: false
+  platform:
+    aws:
+      credentialsSecretRef:
+        name: {{ .Values.metadata.cluster.cluster_1.name }}-aws-creds
+      region: {{ .Values.metadata.cluster.cluster_1.region }}
+  provisioning:
+    installConfigSecretRef:
+      name: {{ .Values.metadata.cluster.cluster_1.name }}-install-config
+    sshPrivateKeySecretRef:
+      name: {{ .Values.metadata.cluster.cluster_1.name }}-ssh-private-key
+    imageSetRef:
+      name: {{ .Values.metadata.cluster.image_set_ref }}
+  pullSecretRef:
+    name: {{ .Values.metadata.cluster.cluster_1.name }}-pull-secret
+---
+apiVersion: hive.openshift.io/v1
+kind: ClusterDeployment
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "60"
+  name: {{ .Values.metadata.cluster.cluster_2.name }}
+  namespace: {{ .Values.metadata.cluster.cluster_2.name }}
+  labels:
+    cloud: {{ .Values.metadata.cloud }}
+    odf: true
+    region: {{ .Values.metadata.cluster.cluster_2.region }}
+    vendor: OpenShift
+    cluster.open-cluster-management.io/clusterset: {{ .Values.metadata.rhacm.clusterset }}
+spec:
+  baseDomain: {{ .Values.metadata.cluster.base_domain }}
+  clusterName: {{ .Values.metadata.cluster.cluster_2.name }}
+  controlPlaneConfig:
+    servingCertificates: {}
+  installAttemptsLimit: 1
+  # installed: false
+  platform:
+    aws:
+      credentialsSecretRef:
+        name: {{ .Values.metadata.cluster.cluster_2.name }}-aws-creds
+      region: {{ .Values.metadata.cluster.cluster_2.region }}
+  provisioning:
+    installConfigSecretRef:
+      name: {{ .Values.metadata.cluster.cluster_2.name }}-install-config
+    sshPrivateKeySecretRef:
+      name: {{ .Values.metadata.cluster.cluster_2.name }}-ssh-private-key
+    imageSetRef:
+      name: {{ .Values.metadata.cluster.image_set_ref }}
+  pullSecretRef:
+    name: {{ .Values.metadata.cluster.cluster_2.name }}-pull-secret

@@ -1,0 +1,18 @@
+{{- $mirroring_enabled := .Values.metadata.odf.mirroring_enabled }}
+{{- if eq ( default false $mirroring_enabled ) true  }}
+---
+apiVersion: replication.storage.openshift.io/v1alpha1
+kind: VolumeReplicationClass
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "300"
+  name: odf-rbd-volumereplicationclass
+spec:
+  provisioner: openshift-storage.rbd.csi.ceph.com
+  parameters:
+    mirroringMode: snapshot
+    schedulingInterval: "5m"  # <-- Must be the same as scheduling interval in the DRPolicy
+    replication.storage.openshift.io/replication-secret-name: rook-csi-rbd-provisioner
+    replication.storage.openshift.io/replication-secret-namespace: openshift-storage
+{{- end }}

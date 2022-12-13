@@ -1,0 +1,24 @@
+# Creates a gitopscluster resource
+#
+# Requires:
+#  Openshift-GitOps operator be installed in the project "openshift-gitops"
+#  Placement resource "all-openshift-clusters" exists
+#  A clusterSet is bound to the openshift-gitops namespace 
+---
+apiVersion: apps.open-cluster-management.io/v1beta1
+kind: GitOpsCluster
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "200"
+  name: argo-odf-importer
+  namespace: openshift-gitops
+spec:
+  argoServer:
+    cluster: local-cluster
+    argoNamespace: openshift-gitops
+  placementRef:
+    kind: Placement
+    apiVersion: cluster.open-cluster-management.io/v1beta1
+    name: all-openshift-odf
+    namespace: openshift-gitops

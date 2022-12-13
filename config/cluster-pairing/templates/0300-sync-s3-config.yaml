@@ -1,0 +1,189 @@
+# https://red-hat-storage.github.io/ocs-training/training/ocs4/odf4-multisite-ramen.html#_create_s3_secrets_for_mcg_object_buckets
+# https://red-hat-storage.github.io/ocs-training/training/ocs4/odf4-multisite-ramen.html#_configure_odr_cluster_operator_configmaps
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "300"
+  name: sync-object-buckets
+  namespace: {{.Values.metadata.argocd_namespace}}
+spec:
+  template:
+    spec:
+      containers:
+        - name: config
+          image: quay.io/openshift/origin-cli:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CLUSTER_1_NAME
+              value: {{.Values.metadata.cluster.cluster_1.name}}
+            - name: CLUSTER_2_NAME
+              value: {{.Values.metadata.cluster.cluster_2.name}}
+            - name: ODF_NAMESPACE
+              value: "{{.Values.metadata.odf.namespace}}"
+            - name: OCP_DR_NAMESPACE
+              value: "{{.Values.metadata.dr.namespace}}"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -eo pipefail
+              set -x
+
+              result=0
+
+              WORKDIR=/tmp
+
+              export KUBECONFIG=${WORKDIR}/kubeconfig-hub
+              api_url=$(oc get Infrastructure cluster -o jsonpath='{.status.apiServerURL}')
+              oc login "${api_url}" --token="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+              && echo "INFO: Logged in to hub cluster." \
+              || {
+                  echo "WARNING: Unable to login to hub cluster."
+              }
+
+              echo "INFO: Login to cluster 1." \
+              && ramen_manager_config_hub="${WORKDIR}/ramen_manager_config.yaml" \
+              && cluster_1_wd="${WORKDIR}/cluster-1" \
+              && mkdir -p "${cluster_1_wd}" \
+              && ramen_manager_config_1="${cluster_1_wd}/ramen_manager_config.yaml" \
+              && secret_name=$(oc get ClusterDeployment "${CLUSTER_1_NAME}" \
+                  --namespace "${CLUSTER_1_NAME}" \
+                  -o jsonpath='{.spec.clusterMetadata.adminKubeconfigSecretRef.name}') \
+              && oc extract secret/${secret_name} \
+                  --namespace "${CLUSTER_1_NAME}" \
+                  --keys kubeconfig \
+                  --to ${cluster_1_wd} \
+                  --confirm=true \
+              && echo "INFO: Login to cluster 2." \
+              && cluster_2_wd="${WORKDIR}/cluster-2" \
+              && mkdir -p "${cluster_2_wd}" \
+              && ramen_manager_config_2="${cluster_2_wd}/ramen_manager_config.yaml" \
+              && secret_name=$(oc get ClusterDeployment "${CLUSTER_2_NAME}" \
+                  --namespace "${CLUSTER_2_NAME}" \
+                  -o jsonpath='{.spec.clusterMetadata.adminKubeconfigSecretRef.name}') \
+              && oc extract secret/${secret_name} \
+                  --namespace "${CLUSTER_2_NAME}" \
+                  --keys kubeconfig \
+                  --to ${cluster_2_wd} \
+                  --confirm=true \
+              && echo "INFO: Retrieve values from cluster 1." \
+              && export KUBECONFIG=${cluster_1_wd}/kubeconfig \
+              && oc extract secret/odrbucket \
+                  -n "${ODF_NAMESPACE}" \
+                  --keys=AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY \
+                  --to ${cluster_1_wd} \
+                  --confirm=true \
+              && cluster_1_s3_endpoint=$(oc get route s3 \
+                  -n "${ODF_NAMESPACE}" \
+                  -o jsonpath \
+                  --template="https://{.spec.host}{'\n'}") \
+              && cluster_1_s3_bucket=$(oc get configmap odrbucket \
+                  -n "${ODF_NAMESPACE}" \
+                  -o jsonpath='{.data.BUCKET_NAME}{"\n"}') \
+              && echo "INFO: Retrieve values from cluster 2." \
+              && export KUBECONFIG=${cluster_2_wd}/kubeconfig \
+              && oc extract secret/odrbucket \
+                  -n "${ODF_NAMESPACE}" \
+                  --keys=AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY \
+                  --to ${cluster_2_wd} \
+                  --confirm=true \
+              && cluster_2_s3_endpoint=$(oc get route s3 \
+                  -n "${ODF_NAMESPACE}" \
+                  -o jsonpath \
+                  --template="https://{.spec.host}{'\n'}") \
+              && cluster_2_s3_bucket=$(oc get configmap odrbucket \
+                  -n "${ODF_NAMESPACE}" \
+                  -o jsonpath='{.data.BUCKET_NAME}{"\n"}') \
+              && ramen_config_addendum="${WORKDIR}/ramen_config_addendum.yaml" \
+              && {
+                cat << EOF > "${ramen_config_addendum}"
+              s3StoreProfiles:
+              - s3ProfileName: s3profile-${CLUSTER_1_NAME}-ocs-storagecluster
+                s3CompatibleEndpoint: "${cluster_1_s3_endpoint}"
+                s3Region: primary
+                s3Bucket: "${cluster_1_s3_bucket}"
+                s3SecretRef:
+                  name: odr-s3secret-primary
+                  namespace: ${OCP_DR_NAMESPACE}
+              - s3ProfileName: s3profile-${CLUSTER_2_NAME}-ocs-storagecluster
+                s3CompatibleEndpoint: "${cluster_2_s3_endpoint}"
+                s3Region: secondary
+                s3Bucket: "${cluster_2_s3_bucket}"
+                s3SecretRef:
+                  name: odr-s3secret-secondary
+                  namespace: ${OCP_DR_NAMESPACE}
+              EOF
+              } \
+              && echo "INFO: Log back to cluster 1." \
+              && export KUBECONFIG=${cluster_1_wd}/kubeconfig \
+              && oc get configmap ramen-dr-cluster-operator-config \
+                  -n ${OCP_DR_NAMESPACE} \
+                  -o jsonpath="{.data.ramen_manager_config\.yaml}" > "${ramen_manager_config_1}" \
+              && {
+                grep s3StoreProfiles "${ramen_manager_config_1}" \
+                || {
+                    cat "${ramen_config_addendum}" >> "${ramen_manager_config_1}" \
+                    && oc create configmap ramen-dr-cluster-operator-config \
+                        -n ${OCP_DR_NAMESPACE} \
+                        --dry-run=client \
+                        --from-file=ramen_manager_config\.yaml="${ramen_manager_config_1}" \
+                        -o yaml \
+                      | oc apply -f -
+                } 
+              } \
+              && echo "INFO: Log back to cluster 2." \
+              && export KUBECONFIG=${cluster_2_wd}/kubeconfig \
+              && oc get configmap ramen-dr-cluster-operator-config \
+                  -n ${OCP_DR_NAMESPACE} \
+                  -o jsonpath="{.data.ramen_manager_config\.yaml}" > "${ramen_manager_config_2}" \
+              && {
+                grep s3StoreProfiles "${ramen_manager_config_2}" \
+                || {
+                    cat "${ramen_config_addendum}" >> "${ramen_manager_config_2}" \
+                    && oc create configmap ramen-dr-cluster-operator-config \
+                        -n ${OCP_DR_NAMESPACE} \
+                        --dry-run=client \
+                        --from-file=ramen_manager_config\.yaml="${ramen_manager_config_2}" \
+                        -o yaml \
+                      | oc apply -f -
+                } 
+              } \
+              && export KUBECONFIG=${WORKDIR}/kubeconfig-hub \
+              && oc create secret generic odr-s3secret-primary \
+                  -n ${OCP_DR_NAMESPACE} \
+                  --from-file=AWS_ACCESS_KEY_ID="${cluster_1_wd}/AWS_ACCESS_KEY_ID" \
+                  --from-file=AWS_SECRET_ACCESS_KEY="${cluster_1_wd}/AWS_SECRET_ACCESS_KEY" \
+                  --dry-run=client \
+                  -o yaml \
+                | oc apply -f - \
+              && oc create secret generic odr-s3secret-secondary \
+                  -n ${OCP_DR_NAMESPACE} \
+                  --from-file=AWS_ACCESS_KEY_ID="${cluster_2_wd}/AWS_ACCESS_KEY_ID" \
+                  --from-file=AWS_SECRET_ACCESS_KEY="${cluster_2_wd}/AWS_SECRET_ACCESS_KEY" \
+                  --dry-run=client \
+                  -o yaml \
+                | oc apply -f - \
+              && oc get configmap ramen-hub-operator-config \
+                  -n ${OCP_DR_NAMESPACE} \
+                  -o jsonpath="{.data.ramen_manager_config\.yaml}" > "${ramen_manager_config_hub}" \
+              && {
+                grep s3StoreProfiles "${ramen_manager_config_hub}" \
+                || {
+                    cat "${ramen_config_addendum}" >> "${ramen_manager_config_hub}" \
+                    && oc create configmap ramen-hub-operator-config \
+                        -n ${OCP_DR_NAMESPACE} \
+                        --dry-run=client \
+                        --from-file=ramen_manager_config\.yaml="${ramen_manager_config_hub}" \
+                        -o yaml \
+                      | oc apply -f -
+                } 
+              } \
+              || result=1
+
+              exit ${result}
+      restartPolicy: Never
+      serviceAccountName: {{.Values.serviceaccount.argocd_application_controller}}
+  backoffLimit: 2

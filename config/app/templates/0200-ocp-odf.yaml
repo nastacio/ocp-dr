@@ -1,0 +1,58 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  creationTimestamp: null
+  name: ocp-odf
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "2
+    00"
+spec:
+  destination:
+    namespace: openshift-gitops
+    server: https://kubernetes.default.svc
+  ignoreDifferences:
+    - group: argoproj.io
+      jsonPointers:
+        - /spec/source/repoURL
+        - /spec/source/targetRevision
+        - /spec/syncPolicy
+        - /status
+      kind: Application
+  project: default
+  source:
+    helm:
+      parameters:
+        - name: repoURL
+          value: ${ARGOCD_APP_SOURCE_REPO_URL}
+        - name: targetRevision
+          value: ${ARGOCD_APP_SOURCE_TARGET_REVISION}
+        - name: metadata.odf.version
+          value: "{{ .Values.metadata.odf.version }}"
+        - name: metadata.odf.mirroring_enabled
+          value: "{{ .Values.metadata.odf.mirroring_enabled }}"
+        - name: metadata.odf.namespace
+          value: {{ .Values.metadata.odf.namespace }}
+        - name: metadata.odf.operator_name
+          value: {{ .Values.metadata.odf.operator_name }}
+        - name: metadata.odf.storage_class_name
+          value: {{ .Values.metadata.odf.storage_class_name }}
+        - name: metadata.odf.storage_cluster_name
+          value: {{ .Values.metadata.odf.storage_cluster_name }}
+    path: config/odf
+    repoURL: {{.Values.repoURL}}
+    targetRevision: {{.Values.targetRevision}}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+status:
+  health: {}
+  summary: {}
+  sync:
+    comparedTo:
+      destination: {}
+      source:
+        repoURL: ""
+    status: ""

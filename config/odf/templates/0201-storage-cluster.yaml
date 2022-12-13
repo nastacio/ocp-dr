@@ -1,0 +1,71 @@
+---
+apiVersion: ocs.openshift.io/v1
+kind: StorageCluster
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "201"
+    uninstall.ocs.openshift.io/cleanup-policy: delete
+    uninstall.ocs.openshift.io/mode: graceful
+  finalizers:
+    - storagecluster.ocs.openshift.io
+  name: {{ .Values.metadata.odf.storage_cluster_name }}
+  namespace: {{ .Values.metadata.odf.namespace }}
+spec:
+  encryption: {}
+  externalStorage: {}
+  managedResources:
+    cephBlockPools: {}
+    cephFilesystems: {}
+    cephObjectStoreUsers: {}
+    cephObjectStores: {}
+  nodeTopologies:
+    labels:
+      topology.rook.io/rack:
+        - rack0
+        - rack1
+        - rack2
+  storageDeviceSets:
+    - config: {}
+      count: 1
+      dataPVCTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: {{ .Values.metadata.odf.disk_size }}
+          storageClassName: {{ .Values.metadata.odf.storage_class_name }}
+          volumeMode: Block
+        status: {}
+      name: "ocs-deviceset-{{ .Values.metadata.odf.storage_class_name }}"
+      placement: {}
+      portable: true
+      replica: 3
+      resources: {}
+  version: "{{ .Values.metadata.odf.version }}.0"
+  placement:
+    all:
+      tolerations:
+      - effect: NoSchedule
+        key: odf-only
+        operator: Equal
+        value: "true"
+    mds:
+      tolerations:
+      - effect: NoSchedule
+        key: odf-only
+        operator: Equal
+        value: "true"
+    noobaa-core:
+      tolerations:
+      - effect: NoSchedule
+        key: odf-only
+        operator: Equal
+        value: "true"
+    rgw:
+      tolerations:
+      - effect: NoSchedule
+        key: odf-only
+        operator: Equal
+        value: "true"

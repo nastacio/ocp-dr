@@ -1,0 +1,55 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  creationTimestamp: null
+  name: ocp-dr-rhacm
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+spec:
+  destination:
+    namespace: openshift-gitops
+    server: https://kubernetes.default.svc
+  ignoreDifferences:
+    - group: argoproj.io
+      jsonPointers:
+        - /spec/source/repoURL
+        - /spec/source/targetRevision
+        - /spec/syncPolicy
+        - /status
+      kind: Application
+  project: default
+  source:
+    helm:
+      parameters:
+        - name: repoURL
+          value: ${ARGOCD_APP_SOURCE_REPO_URL}
+        - name: targetRevision
+          value: ${ARGOCD_APP_SOURCE_TARGET_REVISION}
+        - name: metadata.dr.namespace
+          value: "{{ .Values.metadata.dr.namespace }}"
+        - name: metadata.ocp.version
+          value: "{{ .Values.metadata.ocp.version }}"
+        - name: metadata.odf.namespace
+          value: {{ .Values.metadata.odf.namespace }}
+        - name: metadata.odf.storage_cluster_name
+          value: {{ .Values.metadata.odf.storage_cluster_name }}
+        - name: metadata.rhacm.clusterset
+          value: {{ .Values.metadata.rhacm.clusterset }}
+    path: config/rhacm
+    repoURL: {{.Values.repoURL}}
+    targetRevision: {{.Values.targetRevision}}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+status:
+  health: {}
+  summary: {}
+  sync:
+    comparedTo:
+      destination: {}
+      source:
+        repoURL: ""
+    status: ""

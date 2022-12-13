@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+  creationTimestamp: null
+  name: gitops-odf-dr-role
+  namespace: {{ .Values.metadata.odf.namespace }}
+rules:
+  - apiGroups: ["objectbucket.io"]
+    resources: ["objectbucketclaims"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]

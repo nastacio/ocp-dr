@@ -1,0 +1,47 @@
+---
+apiVersion: apps.open-cluster-management.io/v1
+kind: PlacementRule
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "200"
+  name: all-openshift-odf
+  namespace: policy
+spec:
+  clusterConditions:
+    - status: 'True'
+      type: ManagedClusterConditionAvailable
+  clusterSelector:
+    matchExpressions:
+      # - key: local-cluster
+      #   operator: In
+      #   values:
+      #     - "true"
+      - key: openshiftVersion
+        operator: Exists
+        values: []
+      - key: odf
+        operator: Exists
+        values: []
+---
+apiVersion: apps.open-cluster-management.io/v1
+kind: PlacementRule
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "200"
+  name: all-openshift-odf-dr
+  namespace: policy
+spec:
+  clusterConditions:
+    - status: 'True'
+      type: ManagedClusterConditionAvailable
+  clusterSelector:
+    matchExpressions:
+      - key: openshiftVersion
+        operator: Exists
+        values: []
+      - key: app.kubernetes.io/instance
+        operator: In
+        values:
+          - ocp-dr-clusters

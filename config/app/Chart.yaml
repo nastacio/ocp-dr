@@ -1,7 +1,7 @@
 ---
 apiVersion: v2
-name: ocp-dr-clusters
-description: OCP DR pair definition for managed clusters in RHACM
+name: ocp-clusters-dr
+description: OCP DR cluster pair definition for RHACM
 
 # A chart can be either an 'application' or a 'library' chart.
 #
